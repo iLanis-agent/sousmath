@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SousMath</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,'Segoe UI',Roboto,sans-serif; background:#0d1117; color:#e6edf3; }
+  .wrap { max-width:720px; margin:0 auto; padding:36px 20px 60px; }
+  h1 { font-size:1.9rem; margin:0; }
+  .tag { color:#9da7b3; margin:6px 0 18px; }
+  .presets { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:22px; }
+  .presets button { background:#21262d; color:#c9d1d9; border:1px solid #30363d; border-radius:999px; padding:8px 16px; font-size:0.9rem; cursor:pointer; }
+  .presets button:hover { border-color:#3fb950; color:#3fb950; }
+  section { background:#161b22; border:1px solid #30363d; border-radius:12px; padding:20px; margin-bottom:18px; }
+  h2 { font-size:1rem; margin:0 0 14px; color:#e6edf3; }
+  .row { display:flex; flex-wrap:wrap; gap:14px; margin-bottom:14px; }
+  label { display:block; font-size:0.78rem; color:#9da7b3; margin-bottom:4px; }
+  input, select { background:#0d1117; border:1px solid #30363d; color:#e6edf3; border-radius:6px; padding:8px 10px; font-size:0.95rem; width:130px; }
+  .outs { display:flex; flex-wrap:wrap; gap:12px; }
+  .out { flex:1 1 200px; background:#0d1117; border:1px solid #21262d; border-radius:8px; padding:12px 14px; }
+  .out .val { font-size:1.15rem; font-weight:700; color:#58a6ff; }
+  .out .lab { font-size:0.75rem; color:#9da7b3; margin-top:4px; }
+  .warn { color:#f0883e; }
+  .foot { color:#6e7681; font-size:0.8rem; margin-top:10px; }
+  a { color:#58a6ff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>&#127858; SousMath</h1>
+  <p class="tag">Sous vide timing math - thickness is squared, the core lags the bath, and pasteurization is time at temperature.</p>
+  <div class="presets">
+    <button data-p="salmon">Weeknight salmon</button>
+    <button data-p="steak">Sunday ribeye</button>
+    <button data-p="chicken">Safe chicken breast</button>
+    <button data-p="pork">Freezer pork chops</button>
+  </div>
+
+  <section>
+    <h2>1. Your cut</h2>
+    <div class="row">
+      <div><label>Protein</label>
+        <select id="protein"><option value="fish">Fish</option><option value="redmeat">Beef / lamb (intact)</option><option value="poultry">Poultry</option><option value="pork">Pork</option><option value="ground">Ground meat</option></select></div>
+      <div><label>Thickness (mm)</label><input id="thick" type="number" step="1" min="5" value="25"></div>
+      <div><label>Bath temp (&deg;C)</label><input id="bath" type="number" step="0.5" min="40" max="90" value="48"></div>
+      <div><label>Starting from</label>
+        <select id="start"><option value="fridge">Fridge (4&deg;C)</option><option value="room">Room (20&deg;C)</option><option value="freezer">Freezer (-18&deg;C)</option></select></div>
+    </div>
+    <div class="outs">
+      <div class="out"><div class="val" id="o-band"></div><div class="lab">Doneness at this temp</div></div>
+      <div class="out"><div class="val" id="o-heat"></div><div class="lab">Core heat-up time</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Safety and total</h2>
+    <div class="outs">
+      <div class="out"><div class="val" id="o-dwell"></div><div class="lab">Pasteurization dwell at temp</div></div>
+      <div class="out"><div class="val" id="o-total"></div><div class="lab">Total bath time</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Plan the plate</h2>
+    <div class="row">
+      <div><label>Dinner at</label><input id="dinner" type="time" value="19:00"></div>
+    </div>
+    <div class="outs">
+      <div class="out"><div class="val" id="o-drop"></div><div class="lab">Drop the bag in by</div></div>
+      <div class="out"><div class="val" id="o-chill"></div><div class="lab">Ice-bath chill (cook-chill)</div></div>
+    </div>
+  </section>
+
+  <p class="foot">Estimates for slab-shaped cuts - bones, fat caps and circulation change real times; a probe thermometer is the authority. <a href="index.html">About</a> &middot; <a href="https://github.com/iLanis-agent/sousmath">Code</a></p>
+</div>
+<script src="engine.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var num = function (id) { var v = parseFloat($(id).value); return isNaN(v) ? 0 : v; };
+
+  var PRESETS = {
+    salmon:  { protein:'fish',     thick:25, bath:48, start:'fridge',  dinner:'19:00' },
+    steak:   { protein:'redmeat',  thick:38, bath:55, start:'fridge',  dinner:'18:30' },
+    chicken: { protein:'poultry',  thick:30, bath:63, start:'fridge',  dinner:'19:30' },
+    pork:    { protein:'pork',     thick:30, bath:60, start:'freezer', dinner:'18:00' }
+  };
+
+  function compute() {
+    var protein = $('protein').value, thick = num('thick'), bath = num('bath'), start = $('start').value;
+    $('o-band').textContent = SousMath.bandNote(protein, bath);
+    var heat = SousMath.heatUpMin(thick, bath, start);
+    $('o-heat').textContent = SousMath.fmtMin(heat) + ' - double the thickness, quadruple the wait';
+
+    var dwell = SousMath.dwellMin(protein, bath);
+    var dEl = $('o-dwell');
+    if (dwell === null) {
+      dEl.textContent = 'Below 55C - no timing safety';
+      dEl.className = 'val warn';
+      dEl.nextElementSibling.textContent = 'Pasteurization dwell at temp (serve soon, never hold)';
+    } else if (dwell === 0) {
+      dEl.textContent = 'Safe on arrival';
+      dEl.className = 'val';
+      dEl.nextElementSibling.textContent = 'Pasteurization dwell at temp';
+    } else {
+      dEl.textContent = SousMath.fmtMin(dwell) + ' after core reaches temp';
+      dEl.className = 'val';
+      dEl.nextElementSibling.textContent = 'Pasteurization dwell at temp';
+    }
+
+    var total = SousMath.totalMin(heat, dwell);
+    $('o-total').textContent = SousMath.fmtMin(total);
+    $('o-drop').textContent = SousMath.dropIn($('dinner').value || '19:00', total);
+    $('o-chill').textContent = SousMath.fmtMin(SousMath.chillMin(thick, bath)) + ' to 4C core';
+  }
+
+  function apply(p) {
+    ['protein','thick','bath','start','dinner'].forEach(function (id) { $(id).value = p[id]; });
+    compute();
+  }
+
+  document.querySelectorAll('.presets button').forEach(function (b) {
+    b.addEventListener('click', function () { apply(PRESETS[b.getAttribute('data-p')]); });
+  });
+  document.querySelectorAll('input, select').forEach(function (el) {
+    el.addEventListener('input', compute);
+    el.addEventListener('change', compute);
+  });
+  apply(PRESETS.salmon);
+}());
+</script>
+</body>
+</html>
