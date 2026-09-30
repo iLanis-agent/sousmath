@@ -1,0 +1,46 @@
+var S = require('./engine.js');
+var pass = 0, fail = 0;
+function t(name, got, want) {
+  var ok = got === want;
+  if (ok) pass++; else { fail++; console.log('FAIL ' + name + ': got ' + JSON.stringify(got) + ' want ' + JSON.stringify(want)); }
+}
+t('start fridge', S.startTemp('fridge'), 4);
+t('start room', S.startTemp('room'), 20);
+t('start freezer', S.startTemp('freezer'), -18);
+t('start unknown defaults fridge', S.startTemp('counter'), 4);
+t('heat 25mm 55C fridge', S.heatUpMin(25, 55, 'fridge'), 75);
+t('heat 25mm 48C fridge (salmon)', S.heatUpMin(25, 48, 'fridge'), 75);
+t('heat 50mm 55C fridge is 4x quadratic', S.heatUpMin(50, 55, 'fridge'), 300);
+t('heat 25mm 55C room', S.heatUpMin(25, 55, 'room'), 70);
+t('heat 25mm 55C freezer', S.heatUpMin(25, 55, 'freezer'), 115);
+t('heat 38mm 55C fridge (steak)', S.heatUpMin(38, 55, 'fridge'), 175);
+t('heat 30mm 63C fridge (chicken)', S.heatUpMin(30, 63, 'fridge'), 110);
+t('heat 30mm 60C freezer (pork)', S.heatUpMin(30, 60, 'freezer'), 165);
+t('heat bath below start is zero', S.heatUpMin(25, 18, 'room'), 0);
+t('heat warm bath from room', S.heatUpMin(25, 40, 'room'), 60);
+t('dwell poultry 55', S.dwellMin('poultry', 55), 100);
+t('dwell poultry 60', S.dwellMin('poultry', 60), 12);
+t('dwell poultry 63 interpolated', S.dwellMin('poultry', 63), 3);
+t('dwell poultry 65 safe on arrival', S.dwellMin('poultry', 65), 0);
+t('dwell redmeat 55 quarter', S.dwellMin('redmeat', 55), 25);
+t('dwell pork 60 half', S.dwellMin('pork', 60), 6);
+t('dwell below 55 is null', S.dwellMin('poultry', 54.9), null);
+t('dwell fish 48 is null', S.dwellMin('fish', 48), null);
+t('dwell ground matches poultry', S.dwellMin('ground', 60), S.dwellMin('poultry', 60));
+t('total adds dwell', S.totalMin(75, 12), 87);
+t('total ignores null dwell', S.totalMin(75, null), 75);
+t('chill 25mm 48C', S.chillMin(25, 48), 30);
+t('chill 25mm 55C', S.chillMin(25, 55), 35);
+t('chill grows with thickness', S.chillMin(50, 55) > S.chillMin(25, 55), true);
+t('dropIn 19:00 minus 75', S.dropIn('19:00', 75), '17:45');
+t('dropIn 18:30 minus 200', S.dropIn('18:30', 200), '15:10');
+t('dropIn crosses midnight', S.dropIn('00:30', 90), '23:00');
+t('fmtMin under hour', S.fmtMin(45), '45 min');
+t('fmtMin 75', S.fmtMin(75), '1:15');
+t('fmtMin 200 pads minutes', S.fmtMin(200), '3:20');
+t('band fish 48', S.bandNote('fish', 48), 'just opaque, buttery');
+t('band redmeat 55', S.bandNote('redmeat', 55), 'medium-rare');
+t('band poultry 63', S.bandNote('poultry', 63), 'classic juicy');
+t('band pork 60', S.bandNote('pork', 60), 'classic');
+console.log(pass + '/' + (pass + fail) + ' tests passed');
+process.exit(fail ? 1 : 0);
